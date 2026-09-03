@@ -34,8 +34,8 @@ function onOpen() {
 function openReportDialog() {
   var html = HtmlService.createTemplateFromFile('Dialog')
     .evaluate()
-    .setWidth(560)
-    .setHeight(620);
+    .setWidth(620)
+    .setHeight(780);
   SpreadsheetApp.getUi().showModalDialog(html, 'Вечерний отчёт');
 }
 
@@ -141,18 +141,11 @@ function valueNearAnchor_(sheetName, anchorLabel, label, date, maxOffset) {
   return sheet.getRange(row, dateColumn_(date)).getValue();
 }
 
-/** Как valueNearAnchor_, но подпись-якорь ищем по вхождению текста (contains),
- *  а не по точному совпадению — на случай, если в ячейке "C"/"С" перепутаны местами. */
-function valueNearAnchorContains_(sheetName, anchorNeedle, label, date, maxOffset) {
-  var sheet = getSheet_(sheetName);
-  var anchorRow = findRowContains_(sheet, anchorNeedle);
-  if (!anchorRow) return '';
-  var row = findRowExact_(sheet, label, anchorRow + 1, anchorRow + (maxOffset || 20));
-  if (!row) return '';
-  return sheet.getRange(row, dateColumn_(date)).getValue();
-}
-
 // ---------- сбор всех полей отчёта ----------
+//
+// В строках вида "API (Team A/B): X / Y" из таблицы берётся только X
+// (значение ДО "/"). Y — всегда заполняется вручную в диалоге, см.
+// MANUAL_SECOND_VALUE_KEYS ниже и соответствующие поля в Dialog.html.
 
 function collectReportValues_(date) {
   var v = {};
@@ -160,44 +153,28 @@ function collectReportValues_(date) {
   v.created = valueByLabel_(SHEETS.SVODNAYA, 'Кол-во созданных тикетов', date);
   v.vyvody = valueByLabel_(SHEETS.VYVODY, 'уммарная нагрузка', date, { contains: true });
 
-  // Нагрузка по процессам
+  // Нагрузка по процессам — берём только первое (авто) значение,
+  // второе после "/" — ручной ввод (apiTeamB, pspSecond, ...).
   v.apiTeamA = valueByLabel_(SHEETS.L2, 'Team A', date);
-  v.apiTeamB = valueByLabel_(SHEETS.L2, 'Team B', date);
-
   v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', date, { contains: true });
-  v.pspSecond = valueNearAnchorContains_(SHEETS.L2, 'уммарная нагрузка "PSP"', 'Mena Leads 1x', date, 3);
-
   v.btMena1x = valueByLabel_(SHEETS.L2, 'Mena 1x', date);
-  v.btMenaLeads1x = valueByLabel_(SHEETS.L2, 'Mena Leads 1x', date);
-
   v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', date, { contains: true });
-  // В примере-таблице второго значения для SMP M нет; пробуем найти на всякий случай,
-  // если в вашей таблице такая строка появилась — иначе останется пустым для ручного ввода.
-  v.smpSecond = valueNearAnchorContains_(SHEETS.L2, 'уммарная нагрузка "SMP M"', 'Mena Leads 1x', date, 3);
-
   v.l2l1Mena1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', date, 3);
-  v.l2l1MenaLeads1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena Leads 1x', 'Суммарное кол-во Депозиты', date, 3);
 
-  // L1 / Fraud
+  // L1 / Fraud — тоже только первое значение.
   v.l1Mena1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena 1x', date);
-  v.l1MenaLeads1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena Leads 1x', date);
-
   v.fraudMena1x = valueByLabel_(SHEETS.FRAUD, 'Нагрузка Mena 1x', date);
-  v.fraudMenaLeads1x = valueByLabel_(SHEETS.FRAUD, 'Нагрузка Mena Leads 1x', date);
 
-  // Зависшие (24+)
+  // Зависшие (24+) — тоже только первое значение.
   v.zavPsp = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', date);
-  v.zavApi = valueByLabel_(SHEETS.ZAVISSHIE, 'API', date);
   v.zavBtMena1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena 1x', date);
-  v.zavBtMenaLeads1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', date);
   v.zavSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP M', date);
-  v.zavSmpSecond = '';
 
   var btInProgressMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа In Progress (M)', date, 10);
   var btInProgressMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'PT 24 часа In Progress (M)', date, 10);
   v.inProgressBt = sumValues_(btInProgressMena1x, btInProgressMenaLeads1x);
-  v.inProgressSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'PT 24 часа In Progress', date);
 
+  // Эти две строки в шаблоне полностью автоматические (обе части MENA 1X / Leads 1X).
   v.btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', date, 10);
   v.btSentMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'BT Sent for processing (M) 72h+', date, 10);
   v.btNewMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'New request (M) 72h+', date, 10);
@@ -259,10 +236,21 @@ var TEMPLATE =
   'Проблемные области:\n' +
   '{{problems}}';
 
+// Значения ПОСЛЕ "/" в этих строках в таблице не найдены (или таблица
+// в принципе не даёт для них второй разбивки) — их всегда вводят
+// вручную в диалоге. Ключи совпадают с полями payload и плейсхолдерами
+// в TEMPLATE.
+var MANUAL_SECOND_VALUE_KEYS = [
+  'apiTeamB', 'pspSecond', 'btMenaLeads1x', 'smpSecond',
+  'l2l1MenaLeads1x', 'l1MenaLeads1x', 'fraudMenaLeads1x',
+  'zavApi', 'zavBtMenaLeads1x', 'zavSmpSecond', 'inProgressSmp'
+];
+
 /**
  * Точка входа для диалога: payload = {
  *   reportDate: 'yyyy-MM-dd',  dataDate: 'yyyy-MM-dd',
- *   chatLink, waiting, approved, errorStatus, problems
+ *   chatLink, waiting, approved, errorStatus, problems,
+ *   ...MANUAL_SECOND_VALUE_KEYS
  * }
  */
 function generateReport(payload) {
@@ -280,6 +268,9 @@ function generateReport(payload) {
   for (var key in raw) {
     fields[key] = formatNum_(raw[key]);
   }
+  MANUAL_SECOND_VALUE_KEYS.forEach(function (key) {
+    fields[key] = formatNum_(payload[key] || '');
+  });
 
   var text = TEMPLATE;
   for (var k in fields) {

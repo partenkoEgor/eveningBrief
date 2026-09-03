@@ -1,8 +1,11 @@
 <style>
   body { font-family: Arial, sans-serif; font-size: 13px; margin: 0; padding: 12px 16px; }
   h3 { margin: 4px 0 8px; font-size: 14px; }
+  .hint { font-size: 11px; color: #666; margin: -4px 0 8px; }
   .row { display: flex; gap: 10px; margin-bottom: 8px; }
   .row > div { flex: 1; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
+  .grid > div { flex: 1 1 47%; box-sizing: border-box; }
   label { display: block; font-weight: bold; margin-bottom: 2px; }
   input[type="date"], input[type="text"] {
     width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 13px;
@@ -12,7 +15,7 @@
     padding: 6px; resize: vertical;
   }
   #problems { height: 44px; }
-  #result { height: 260px; margin-top: 6px; }
+  #result { height: 220px; margin-top: 6px; }
   .actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
   button {
     padding: 6px 14px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
@@ -59,13 +62,17 @@
   <textarea id="problems"></textarea>
 </div>
 
+<h3 style="margin-top:14px;">2. Вторые значения (после «/»)</h3>
+<div class="hint">Первое число в этих строках подтягивается из таблицы, второе — всегда вручную.</div>
+<div class="grid" id="secondValues"></div>
+
 <div class="actions">
   <button class="primary" onclick="generate()">Сформировать отчёт</button>
   <span id="status"></span>
 </div>
 <div id="error"></div>
 
-<h3 style="margin-top:14px;">2. Готовый текст (можно поправить перед копированием)</h3>
+<h3 style="margin-top:14px;">3. Готовый текст (можно поправить перед копированием)</h3>
 <textarea id="result" placeholder="Нажмите «Сформировать отчёт»…"></textarea>
 <div class="actions">
   <button onclick="copyResult()">Скопировать</button>
@@ -73,6 +80,35 @@
 </div>
 
 <script>
+  // Ключи совпадают с MANUAL_SECOND_VALUE_KEYS в Code.gs.
+  var SECOND_VALUE_FIELDS = [
+    { key: 'apiTeamB', label: 'API (после /)' },
+    { key: 'pspSecond', label: 'PSP (после /)' },
+    { key: 'btMenaLeads1x', label: 'BT M — нагрузка (после /)' },
+    { key: 'smpSecond', label: 'SMP M — нагрузка (после /)' },
+    { key: 'l2l1MenaLeads1x', label: 'L2/L1 депозиты (после /)' },
+    { key: 'l1MenaLeads1x', label: 'L1 (после /)' },
+    { key: 'fraudMenaLeads1x', label: 'Fraud (после /)' },
+    { key: 'zavApi', label: 'Зависшие PSP/API (после /)' },
+    { key: 'zavBtMenaLeads1x', label: 'Зависшие BT M (после /)' },
+    { key: 'zavSmpSecond', label: 'Зависшие SMP M (после /)' },
+    { key: 'inProgressSmp', label: 'In Progress SMP (после /)' }
+  ];
+
+  var grid = document.getElementById('secondValues');
+  SECOND_VALUE_FIELDS.forEach(function (f) {
+    var wrap = document.createElement('div');
+    var label = document.createElement('label');
+    label.textContent = f.label;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = f.key;
+    input.placeholder = '0';
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+    grid.appendChild(wrap);
+  });
+
   google.script.run.withSuccessHandler(function (iso) {
     document.getElementById('reportDate').value = iso;
   }).getTodayDate();
@@ -93,6 +129,9 @@
       errorStatus: document.getElementById('errorStatus').value,
       problems: document.getElementById('problems').value
     };
+    SECOND_VALUE_FIELDS.forEach(function (f) {
+      payload[f.key] = document.getElementById(f.key).value;
+    });
     google.script.run
       .withSuccessHandler(function (text) {
         document.getElementById('result').value = text;
