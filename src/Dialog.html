@@ -1,0 +1,127 @@
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; margin: 0; padding: 12px 16px; }
+  h3 { margin: 4px 0 8px; font-size: 14px; }
+  .row { display: flex; gap: 10px; margin-bottom: 8px; }
+  .row > div { flex: 1; }
+  label { display: block; font-weight: bold; margin-bottom: 2px; }
+  input[type="date"], input[type="text"] {
+    width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 13px;
+  }
+  textarea {
+    width: 100%; box-sizing: border-box; font-family: monospace; font-size: 12px;
+    padding: 6px; resize: vertical;
+  }
+  #problems { height: 44px; }
+  #result { height: 260px; margin-top: 6px; }
+  .actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+  button {
+    padding: 6px 14px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
+    border-radius: 4px; background: #f7f7f7;
+  }
+  button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  #status { font-size: 12px; color: #188038; }
+  #error { font-size: 12px; color: #c5221f; white-space: pre-wrap; }
+</style>
+
+<h3>1. Ручные поля (в таблице их нет — заполните перед формированием)</h3>
+<div class="row">
+  <div>
+    <label>Дата отчёта</label>
+    <input type="date" id="reportDate">
+  </div>
+  <div>
+    <label>Дата данных (за какой день цифры)</label>
+    <input type="date" id="dataDate">
+  </div>
+</div>
+<div class="row">
+  <div>
+    <label>Чат 72 (ссылка)</label>
+    <input type="text" id="chatLink" placeholder="https://...">
+  </div>
+  <div>
+    <label>Ожидают ответа</label>
+    <input type="text" id="waiting" placeholder="0">
+  </div>
+</div>
+<div class="row">
+  <div>
+    <label>Массовый Approved</label>
+    <input type="text" id="approved" placeholder="0">
+  </div>
+  <div>
+    <label>Ошибка - Статус</label>
+    <input type="text" id="errorStatus" placeholder="0">
+  </div>
+</div>
+<div>
+  <label>Проблемные области</label>
+  <textarea id="problems"></textarea>
+</div>
+
+<div class="actions">
+  <button class="primary" onclick="generate()">Сформировать отчёт</button>
+  <span id="status"></span>
+</div>
+<div id="error"></div>
+
+<h3 style="margin-top:14px;">2. Готовый текст (можно поправить перед копированием)</h3>
+<textarea id="result" placeholder="Нажмите «Сформировать отчёт»…"></textarea>
+<div class="actions">
+  <button onclick="copyResult()">Скопировать</button>
+  <span id="copyStatus"></span>
+</div>
+
+<script>
+  google.script.run.withSuccessHandler(function (iso) {
+    document.getElementById('reportDate').value = iso;
+  }).getTodayDate();
+
+  google.script.run.withSuccessHandler(function (iso) {
+    document.getElementById('dataDate').value = iso;
+  }).getDefaultDataDate();
+
+  function generate() {
+    document.getElementById('status').textContent = 'Считаю…';
+    document.getElementById('error').textContent = '';
+    var payload = {
+      reportDate: document.getElementById('reportDate').value,
+      dataDate: document.getElementById('dataDate').value,
+      chatLink: document.getElementById('chatLink').value,
+      waiting: document.getElementById('waiting').value,
+      approved: document.getElementById('approved').value,
+      errorStatus: document.getElementById('errorStatus').value,
+      problems: document.getElementById('problems').value
+    };
+    google.script.run
+      .withSuccessHandler(function (text) {
+        document.getElementById('result').value = text;
+        document.getElementById('status').textContent = 'Готово';
+      })
+      .withFailureHandler(function (err) {
+        document.getElementById('status').textContent = '';
+        document.getElementById('error').textContent = 'Ошибка: ' + (err && err.message ? err.message : err);
+      })
+      .generateReport(payload);
+  }
+
+  function copyResult() {
+    var el = document.getElementById('result');
+    el.focus();
+    el.select();
+    var copyStatus = document.getElementById('copyStatus');
+    var done = function () {
+      copyStatus.textContent = 'Скопировано!';
+      setTimeout(function () { copyStatus.textContent = ''; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(el.value).then(done).catch(function () {
+        document.execCommand('copy');
+        done();
+      });
+    } else {
+      document.execCommand('copy');
+      done();
+    }
+  }
+</script>
