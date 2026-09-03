@@ -24,17 +24,15 @@
   button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
   #status { font-size: 12px; color: #188038; }
   #error { font-size: 12px; color: #c5221f; white-space: pre-wrap; }
+  #warnings { font-size: 12px; color: #b06000; white-space: pre-wrap; margin-top: 6px; }
 </style>
 
 <h3>1. Ручные поля (в таблице их нет — заполните перед формированием)</h3>
 <div class="row">
   <div>
-    <label>Дата отчёта</label>
+    <label>Дата (сегодня)</label>
     <input type="date" id="reportDate">
-  </div>
-  <div>
-    <label>Дата данных (за какой день цифры)</label>
-    <input type="date" id="dataDate">
+    <div class="hint">«Создано тикетов» возьмётся за день до этой даты, всё остальное — за эту дату.</div>
   </div>
 </div>
 <div class="row">
@@ -74,6 +72,7 @@
 
 <h3 style="margin-top:14px;">3. Готовый текст (можно поправить перед копированием)</h3>
 <textarea id="result" placeholder="Нажмите «Сформировать отчёт»…"></textarea>
+<div id="warnings"></div>
 <div class="actions">
   <button onclick="copyResult()">Скопировать</button>
   <span id="copyStatus"></span>
@@ -113,16 +112,12 @@
     document.getElementById('reportDate').value = iso;
   }).getTodayDate();
 
-  google.script.run.withSuccessHandler(function (iso) {
-    document.getElementById('dataDate').value = iso;
-  }).getDefaultDataDate();
-
   function generate() {
     document.getElementById('status').textContent = 'Считаю…';
     document.getElementById('error').textContent = '';
+    document.getElementById('warnings').textContent = '';
     var payload = {
-      reportDate: document.getElementById('reportDate').value,
-      dataDate: document.getElementById('dataDate').value,
+      date: document.getElementById('reportDate').value,
       chatLink: document.getElementById('chatLink').value,
       waiting: document.getElementById('waiting').value,
       approved: document.getElementById('approved').value,
@@ -133,9 +128,13 @@
       payload[f.key] = document.getElementById(f.key).value;
     });
     google.script.run
-      .withSuccessHandler(function (text) {
-        document.getElementById('result').value = text;
+      .withSuccessHandler(function (res) {
+        document.getElementById('result').value = res.text;
         document.getElementById('status').textContent = 'Готово';
+        if (res.missing && res.missing.length) {
+          document.getElementById('warnings').textContent =
+            '⚠ Не найдено в таблице (оставлено пустым): ' + res.missing.join(', ');
+        }
       })
       .withFailureHandler(function (err) {
         document.getElementById('status').textContent = '';

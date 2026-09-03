@@ -43,15 +43,7 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/** Дата "данных" по умолчанию — вчерашний день (ISO yyyy-MM-dd). */
-function getDefaultDataDate() {
-  var tz = Session.getScriptTimeZone();
-  var d = new Date();
-  d.setDate(d.getDate() - 1);
-  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
-}
-
-/** Сегодняшняя дата (ISO), для поля "Дата" в шапке отчёта. */
+/** Сегодняшняя дата (ISO yyyy-MM-dd) — значение по умолчанию для единственного поля даты в диалоге. */
 function getTodayDate() {
   var tz = Session.getScriptTimeZone();
   return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
@@ -143,45 +135,72 @@ function valueNearAnchor_(sheetName, anchorLabel, label, date, maxOffset) {
 
 // ---------- сбор всех полей отчёта ----------
 //
+// Даты: "Создано тикетов" — это итог за ПРОШЛЫЙ (уже завершённый) день,
+// поэтому берётся из колонки yesterdayDate. Все остальные автополя —
+// текущий снимок очереди/нагрузки, берутся из колонки todayDate.
+//
 // В строках вида "API (Team A/B): X / Y" из таблицы берётся только X
 // (значение ДО "/"). Y — всегда заполняется вручную в диалоге, см.
 // MANUAL_SECOND_VALUE_KEYS ниже и соответствующие поля в Dialog.html.
 
-function collectReportValues_(date) {
+// Человекочитаемые названия полей — для предупреждения о пустых ячейках.
+var FIELD_LABELS = {
+  created: 'Создано тикетов',
+  vyvody: 'Выводы',
+  apiTeamA: 'Нагрузка API (Team A)',
+  pspTotal: 'Нагрузка PSP',
+  btMena1x: 'Нагрузка BT M (Mena 1x)',
+  smpTotal: 'Нагрузка SMP M',
+  l2l1Mena1x: 'L2/L1 депозиты (Mena 1x)',
+  l1Mena1x: 'L1 — Нагрузка (Mena 1x)',
+  fraudMena1x: 'Fraud — Нагрузка (Mena 1x)',
+  zavPsp: 'Зависшие PSP',
+  zavBtMena1x: 'Зависшие BT M (Mena 1x)',
+  zavSmp: 'Зависшие SMP M',
+  inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x)',
+  btSentMena1x: 'BT Sent for processing 72h+ (Mena 1x)',
+  btSentMenaLeads1x: 'BT Sent for processing 72h+ (Mena Leads 1x)',
+  btNewMena1x: 'BT New request 72h+ (Mena 1x)',
+  btNewMenaLeads1x: 'BT New request 72h+ (Mena Leads 1x)',
+  smpSent: 'SMP Sent for processing 72h+',
+  smpNew: 'SMP New request 72h+'
+};
+
+function collectReportValues_(todayDate, yesterdayDate) {
   var v = {};
 
-  v.created = valueByLabel_(SHEETS.SVODNAYA, 'Кол-во созданных тикетов', date);
-  v.vyvody = valueByLabel_(SHEETS.VYVODY, 'уммарная нагрузка', date, { contains: true });
+  v.created = valueByLabel_(SHEETS.SVODNAYA, 'Кол-во созданных тикетов', yesterdayDate);
+  v.vyvody = valueByLabel_(SHEETS.VYVODY, 'уммарная нагрузка', todayDate, { contains: true });
 
   // Нагрузка по процессам — берём только первое (авто) значение,
   // второе после "/" — ручной ввод (apiTeamB, pspSecond, ...).
-  v.apiTeamA = valueByLabel_(SHEETS.L2, 'Team A', date);
-  v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', date, { contains: true });
-  v.btMena1x = valueByLabel_(SHEETS.L2, 'Mena 1x', date);
-  v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', date, { contains: true });
-  v.l2l1Mena1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', date, 3);
+  v.apiTeamA = valueByLabel_(SHEETS.L2, 'Team A', todayDate);
+  v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', todayDate, { contains: true });
+  v.btMena1x = valueByLabel_(SHEETS.L2, 'Mena 1x', todayDate);
+  v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', todayDate, { contains: true });
+  v.l2l1Mena1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', todayDate, 3);
 
   // L1 / Fraud — тоже только первое значение.
-  v.l1Mena1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena 1x', date);
-  v.fraudMena1x = valueByLabel_(SHEETS.FRAUD, 'Нагрузка Mena 1x', date);
+  v.l1Mena1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena 1x', todayDate);
+  v.fraudMena1x = valueByLabel_(SHEETS.FRAUD, 'Нагрузка Mena 1x', todayDate);
 
   // Зависшие (24+) — тоже только первое значение.
-  v.zavPsp = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', date);
-  v.zavBtMena1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena 1x', date);
-  v.zavSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP M', date);
+  v.zavPsp = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', todayDate);
+  v.zavBtMena1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena 1x', todayDate);
+  v.zavSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP M', todayDate);
 
-  var btInProgressMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа In Progress (M)', date, 10);
-  var btInProgressMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'PT 24 часа In Progress (M)', date, 10);
+  var btInProgressMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа In Progress (M)', todayDate, 10);
+  var btInProgressMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'PT 24 часа In Progress (M)', todayDate, 10);
   v.inProgressBt = sumValues_(btInProgressMena1x, btInProgressMenaLeads1x);
 
   // Эти две строки в шаблоне полностью автоматические (обе части MENA 1X / Leads 1X).
-  v.btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', date, 10);
-  v.btSentMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'BT Sent for processing (M) 72h+', date, 10);
-  v.btNewMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'New request (M) 72h+', date, 10);
-  v.btNewMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'New request (M) 72h+', date, 10);
+  v.btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
+  v.btSentMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
+  v.btNewMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'New request (M) 72h+', todayDate, 10);
+  v.btNewMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'New request (M) 72h+', todayDate, 10);
 
-  v.smpSent = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP Sent for processing 72h+', date);
-  v.smpNew = valueByLabel_(SHEETS.ZAVISSHIE, 'New request 72h+', date);
+  v.smpSent = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP Sent for processing 72h+', todayDate);
+  v.smpNew = valueByLabel_(SHEETS.ZAVISSHIE, 'New request 72h+', todayDate);
 
   return v;
 }
@@ -248,17 +267,28 @@ var MANUAL_SECOND_VALUE_KEYS = [
 
 /**
  * Точка входа для диалога: payload = {
- *   reportDate: 'yyyy-MM-dd',  dataDate: 'yyyy-MM-dd',
+ *   date: 'yyyy-MM-dd' (это "сегодня" для отчёта — от него же считается "вчера"),
  *   chatLink, waiting, approved, errorStatus, problems,
  *   ...MANUAL_SECOND_VALUE_KEYS
  * }
+ * Возвращает { text, missing } — missing перечисляет автополя, для
+ * которых в таблице не нашлась строка или ячейка на нужную дату
+ * оказалась пустой (в тексте на их месте останется пустое место).
  */
 function generateReport(payload) {
-  var dataDate = parseIsoDate_(payload.dataDate);
-  var raw = collectReportValues_(dataDate);
+  var todayDate = parseIsoDate_(payload.date);
+  var yesterdayDate = new Date(todayDate);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+
+  var raw = collectReportValues_(todayDate, yesterdayDate);
+
+  var missing = [];
+  for (var rk in raw) {
+    if (raw[rk] === '' && FIELD_LABELS[rk]) missing.push(FIELD_LABELS[rk]);
+  }
 
   var fields = {
-    reportDate: formatDisplayDate_(parseIsoDate_(payload.reportDate)),
+    reportDate: formatDisplayDate_(todayDate),
     chatLink: payload.chatLink || '',
     waiting: payload.waiting || '',
     approved: payload.approved || '',
@@ -276,7 +306,7 @@ function generateReport(payload) {
   for (var k in fields) {
     text = text.replace(new RegExp('{{' + k + '}}', 'g'), fields[k]);
   }
-  return text;
+  return { text: text, missing: missing };
 }
 
 function parseIsoDate_(iso) {
