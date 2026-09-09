@@ -151,7 +151,7 @@ var FIELD_LABELS = {
   pspTotal: 'Нагрузка PSP',
   btTotal: 'Нагрузка BT M (Суммарная нагрузка "BT M")',
   smpTotal: 'Нагрузка SMP M',
-  l2l1Mena1x: 'L2/L1 депозиты (Mena 1x)',
+  l2l1Total: 'L2/L1 депозиты (Mena 1x + Mena Leads 1x)',
   l1Mena1x: 'L1 — Нагрузка (Mena 1x)',
   fraudMena1x: 'Fraud — Нагрузка (Mena 1x)',
   zavPsp: 'Зависшие PSP',
@@ -178,7 +178,9 @@ function collectReportValues_(todayDate, yesterdayDate) {
   v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', todayDate, { contains: true });
   v.btTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "BT M"', todayDate, { contains: true });
   v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', todayDate, { contains: true });
-  v.l2l1Mena1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', todayDate, 3);
+  var l2l1Mena1xDeposits = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', todayDate, 3);
+  var l2l1MenaLeads1xDeposits = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena Leads 1x', 'Суммарное кол-во Депозиты', todayDate, 3);
+  v.l2l1Total = sumValues_(l2l1Mena1xDeposits, l2l1MenaLeads1xDeposits);
 
   // L1 / Fraud — тоже только первое значение.
   v.l1Mena1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena 1x', todayDate);
@@ -227,7 +229,7 @@ var TEMPLATE =
   'PSP:  {{pspTotal}} / {{pspSecond}}\n' +
   'BT M: {{btTotal}} / {{btMenaLeads1x}}\n' +
   'SMP M: {{smpTotal}} / {{smpSecond}}\n' +
-  'L2/L1 (депозиты): {{l2l1Mena1x}} / {{l2l1MenaLeads1x}}\n' +
+  'L2/L1 (депозиты): {{l2l1Total}} / {{l2l1MenaLeads1x}}\n' +
   '\n' +
   'L1:\n' +
   'Нагрузка: {{l1Mena1x}} / {{l1MenaLeads1x}}\n' +
