@@ -157,7 +157,7 @@ var FIELD_LABELS = {
   zavPspApi: 'Зависшие PSP/API (сумма строк API + PSP)',
   zavBtM: 'Зависшие BT M (сумма PT 24 часа (ПК): Mena 1x + Mena Leads 1x)',
   zavSmp: 'Зависшие SMP M',
-  inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x)',
+  inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x + SMP)',
   btSentMena1x: 'BT Sent for processing 72h+ (Mena 1x)',
   btSentMenaLeads1x: 'BT Sent for processing 72h+ (Mena Leads 1x)',
   btNewMena1x: 'BT New request 72h+ (Mena 1x)',
@@ -197,7 +197,8 @@ function collectReportValues_(todayDate, yesterdayDate) {
 
   var btInProgressMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа In Progress (M)', todayDate, 10);
   var btInProgressMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'PT 24 часа In Progress (M)', todayDate, 10);
-  v.inProgressBt = sumValues_(btInProgressMena1x, btInProgressMenaLeads1x);
+  var smpInProgress24h = valueByLabel_(SHEETS.ZAVISSHIE, 'PT 24 часа In Progress', todayDate);
+  v.inProgressBt = sumValues_(btInProgressMena1x, btInProgressMenaLeads1x, smpInProgress24h);
 
   // Эти две строки в шаблоне полностью автоматические (обе части MENA 1X / Leads 1X).
   v.btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
@@ -211,11 +212,19 @@ function collectReportValues_(todayDate, yesterdayDate) {
   return v;
 }
 
-function sumValues_(a, b) {
-  var na = toNumber_(a);
-  var nb = toNumber_(b);
-  if (na === null && nb === null) return '';
-  return (na || 0) + (nb || 0);
+/** Сумма любого числа значений; пустые/нечисловые считаются нулём.
+ *  Если ВСЕ значения пустые — возвращает '' (чтобы поле числилось как "не найдено"). */
+function sumValues_() {
+  var total = 0;
+  var allEmpty = true;
+  for (var i = 0; i < arguments.length; i++) {
+    var n = toNumber_(arguments[i]);
+    if (n !== null) {
+      allEmpty = false;
+      total += n;
+    }
+  }
+  return allEmpty ? '' : total;
 }
 
 // ---------- сборка итогового текста ----------
