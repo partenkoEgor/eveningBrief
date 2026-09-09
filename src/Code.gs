@@ -155,7 +155,7 @@ var FIELD_LABELS = {
   l1Total: 'L1 — Нагрузка (Cуммарное кол-во нагрузки)',
   fraudTotal: 'Fraud — Нагрузка (Cуммарное кол-во нагрузки)',
   zavPspApi: 'Зависшие PSP/API (сумма строк API + PSP)',
-  zavBtMena1x: 'Зависшие BT M (Mena 1x)',
+  zavBtM: 'Зависшие BT M (сумма PT 24 часа (ПК): Mena 1x + Mena Leads 1x)',
   zavSmp: 'Зависшие SMP M',
   inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x)',
   btSentMena1x: 'BT Sent for processing 72h+ (Mena 1x)',
@@ -190,7 +190,9 @@ function collectReportValues_(todayDate, yesterdayDate) {
   var zavApiTotal = valueByLabel_(SHEETS.ZAVISSHIE, 'API', todayDate);
   var zavPspTotal = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', todayDate);
   v.zavPspApi = sumValues_(zavApiTotal, zavPspTotal);
-  v.zavBtMena1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena 1x', todayDate);
+  var zavBtM24hMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа (ПК)', todayDate, 10);
+  var zavBtM24hMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'PT 24 часа (ПК)', todayDate, 10);
+  v.zavBtM = sumValues_(zavBtM24hMena1x, zavBtM24hMenaLeads1x);
   v.zavSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP M', todayDate);
 
   var btInProgressMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'PT 24 часа In Progress (M)', todayDate, 10);
@@ -241,7 +243,7 @@ var TEMPLATE =
   '\n' +
   'Зависшие (24+):\n' +
   'PSP/API  {{zavPspApi}} / {{zavApi}}\n' +
-  'BT M: {{zavBtMena1x}} / {{zavBtMenaLeads1x}}\n' +
+  'BT M: {{zavBtM}} / {{zavBtMenaLeads1x}}\n' +
   'SMP M: {{zavSmp}} / {{zavSmpSecond}}\n' +
   'In Progress (BT/SMP): {{inProgressBt}} / {{inProgressSmp}}\n' +
   '\n' +
