@@ -154,7 +154,7 @@ var FIELD_LABELS = {
   l2l1Total: 'L2/L1 депозиты (Mena 1x + Mena Leads 1x)',
   l1Total: 'L1 — Нагрузка (Cуммарное кол-во нагрузки)',
   fraudTotal: 'Fraud — Нагрузка (Cуммарное кол-во нагрузки)',
-  zavPsp: 'Зависшие PSP',
+  zavPspApi: 'Зависшие PSP/API (сумма строк API + PSP)',
   zavBtMena1x: 'Зависшие BT M (Mena 1x)',
   zavSmp: 'Зависшие SMP M',
   inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x)',
@@ -187,7 +187,9 @@ function collectReportValues_(todayDate, yesterdayDate) {
   v.fraudTotal = valueByLabel_(SHEETS.FRAUD, 'уммарное кол-во нагрузки', todayDate, { contains: true });
 
   // Зависшие (24+) — тоже только первое значение.
-  v.zavPsp = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', todayDate);
+  var zavApiTotal = valueByLabel_(SHEETS.ZAVISSHIE, 'API', todayDate);
+  var zavPspTotal = valueByLabel_(SHEETS.ZAVISSHIE, 'PSP', todayDate);
+  v.zavPspApi = sumValues_(zavApiTotal, zavPspTotal);
   v.zavBtMena1x = valueByLabel_(SHEETS.ZAVISSHIE, 'Mena 1x', todayDate);
   v.zavSmp = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP M', todayDate);
 
@@ -238,7 +240,7 @@ var TEMPLATE =
   'Нагрузка: {{fraudTotal}} / {{fraudMenaLeads1x}}\n' +
   '\n' +
   'Зависшие (24+):\n' +
-  'PSP/API  {{zavPsp}} / {{zavApi}}\n' +
+  'PSP/API  {{zavPspApi}} / {{zavApi}}\n' +
   'BT M: {{zavBtMena1x}} / {{zavBtMenaLeads1x}}\n' +
   'SMP M: {{zavSmp}} / {{zavSmpSecond}}\n' +
   'In Progress (BT/SMP): {{inProgressBt}} / {{inProgressSmp}}\n' +
