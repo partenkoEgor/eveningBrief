@@ -147,7 +147,7 @@ function valueNearAnchor_(sheetName, anchorLabel, label, date, maxOffset) {
 var FIELD_LABELS = {
   created: 'Создано тикетов',
   vyvody: 'Выводы',
-  apiTeamA: 'Нагрузка API (Team A)',
+  apiTeamA: 'Нагрузка API (Суммарная нагрузка "API")',
   pspTotal: 'Нагрузка PSP',
   btMena1x: 'Нагрузка BT M (Mena 1x)',
   smpTotal: 'Нагрузка SMP M',
@@ -174,7 +174,7 @@ function collectReportValues_(todayDate, yesterdayDate) {
 
   // Нагрузка по процессам — берём только первое (авто) значение,
   // второе после "/" — ручной ввод (apiTeamB, pspSecond, ...).
-  v.apiTeamA = valueByLabel_(SHEETS.L2, 'Team A', todayDate);
+  v.apiTeamA = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "API"', todayDate, { contains: true });
   v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', todayDate, { contains: true });
   v.btMena1x = valueByLabel_(SHEETS.L2, 'Mena 1x', todayDate);
   v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', todayDate, { contains: true });
