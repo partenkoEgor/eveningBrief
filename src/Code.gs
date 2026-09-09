@@ -149,7 +149,7 @@ var FIELD_LABELS = {
   vyvody: 'Выводы',
   apiTeamA: 'Нагрузка API (Суммарная нагрузка "API")',
   pspTotal: 'Нагрузка PSP',
-  btMena1x: 'Нагрузка BT M (Mena 1x)',
+  btTotal: 'Нагрузка BT M (Суммарная нагрузка "BT M")',
   smpTotal: 'Нагрузка SMP M',
   l2l1Mena1x: 'L2/L1 депозиты (Mena 1x)',
   l1Mena1x: 'L1 — Нагрузка (Mena 1x)',
@@ -176,7 +176,7 @@ function collectReportValues_(todayDate, yesterdayDate) {
   // второе после "/" — ручной ввод (apiTeamB, pspSecond, ...).
   v.apiTeamA = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "API"', todayDate, { contains: true });
   v.pspTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "PSP"', todayDate, { contains: true });
-  v.btMena1x = valueByLabel_(SHEETS.L2, 'Mena 1x', todayDate);
+  v.btTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "BT M"', todayDate, { contains: true });
   v.smpTotal = valueByLabel_(SHEETS.L2, 'уммарная нагрузка "SMP M"', todayDate, { contains: true });
   v.l2l1Mena1x = valueNearAnchor_(SHEETS.L2, 'L2/L1 Mena 1x', 'Суммарное кол-во Депозиты', todayDate, 3);
 
@@ -225,7 +225,7 @@ var TEMPLATE =
   'Нагрузка по процессам (MENA 1X / Leads 1X):\n' +
   'API (Team A/B):  {{apiTeamA}} / {{apiTeamB}}\n' +
   'PSP:  {{pspTotal}} / {{pspSecond}}\n' +
-  'BT M: {{btMena1x}} / {{btMenaLeads1x}}\n' +
+  'BT M: {{btTotal}} / {{btMenaLeads1x}}\n' +
   'SMP M: {{smpTotal}} / {{smpSecond}}\n' +
   'L2/L1 (депозиты): {{l2l1Mena1x}} / {{l2l1MenaLeads1x}}\n' +
   '\n' +
