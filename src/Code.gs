@@ -230,6 +230,8 @@ function sumValues_() {
 // ---------- сборка итогового текста ----------
 
 var TEMPLATE =
+  '#отчёт_monitoring\n' +
+  '\n' +
   'Дата: {{reportDate}}\n' +
   '\n' +
   'Общие показатели:\n' +
