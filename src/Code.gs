@@ -152,7 +152,7 @@ var FIELD_LABELS = {
   btTotal: 'Нагрузка BT M (Суммарная нагрузка "BT M")',
   smpTotal: 'Нагрузка SMP M',
   l2l1Total: 'L2/L1 депозиты (Mena 1x + Mena Leads 1x)',
-  l1Mena1x: 'L1 — Нагрузка (Mena 1x)',
+  l1Total: 'L1 — Нагрузка (Cуммарное кол-во нагрузки)',
   fraudMena1x: 'Fraud — Нагрузка (Mena 1x)',
   zavPsp: 'Зависшие PSP',
   zavBtMena1x: 'Зависшие BT M (Mena 1x)',
@@ -183,7 +183,7 @@ function collectReportValues_(todayDate, yesterdayDate) {
   v.l2l1Total = sumValues_(l2l1Mena1xDeposits, l2l1MenaLeads1xDeposits);
 
   // L1 / Fraud — тоже только первое значение.
-  v.l1Mena1x = valueByLabel_(SHEETS.L1, 'Нагрузка Mena 1x', todayDate);
+  v.l1Total = valueByLabel_(SHEETS.L1, 'уммарное кол-во нагрузки', todayDate, { contains: true });
   v.fraudMena1x = valueByLabel_(SHEETS.FRAUD, 'Нагрузка Mena 1x', todayDate);
 
   // Зависшие (24+) — тоже только первое значение.
@@ -232,7 +232,7 @@ var TEMPLATE =
   'L2/L1 (депозиты): {{l2l1Total}} / {{l2l1MenaLeads1x}}\n' +
   '\n' +
   'L1:\n' +
-  'Нагрузка: {{l1Mena1x}} / {{l1MenaLeads1x}}\n' +
+  'Нагрузка: {{l1Total}} / {{l1MenaLeads1x}}\n' +
   '\n' +
   'Fraud:\n' +
   'Нагрузка: {{fraudMena1x}} / {{fraudMenaLeads1x}}\n' +
