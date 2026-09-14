@@ -158,10 +158,8 @@ var FIELD_LABELS = {
   zavBtM: 'Зависшие BT M (сумма PT 24 часа (ПК): Mena 1x + Mena Leads 1x)',
   zavSmp: 'Зависшие SMP M',
   inProgressBt: 'In Progress BT (Mena 1x + Mena Leads 1x + SMP)',
-  btSentMena1x: 'BT Sent for processing 72h+ (Mena 1x)',
-  btSentMenaLeads1x: 'BT Sent for processing 72h+ (Mena Leads 1x)',
-  btNewMena1x: 'BT New request 72h+ (Mena 1x)',
-  btNewMenaLeads1x: 'BT New request 72h+ (Mena Leads 1x)',
+  btSentTotal: 'BT Sent for processing 72h+ (Mena 1x + Mena Leads 1x)',
+  btNewTotal: 'BT New request 72h+ (Mena 1x + Mena Leads 1x)',
   smpSent: 'SMP Sent for processing 72h+',
   smpNew: 'SMP New request 72h+'
 };
@@ -200,11 +198,13 @@ function collectReportValues_(todayDate, yesterdayDate) {
   var smpInProgress24h = valueByLabel_(SHEETS.ZAVISSHIE, 'PT 24 часа In Progress', todayDate);
   v.inProgressBt = sumValues_(btInProgressMena1x, btInProgressMenaLeads1x, smpInProgress24h);
 
-  // Эти две строки в шаблоне полностью автоматические (обе части MENA 1X / Leads 1X).
-  v.btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
-  v.btSentMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
-  v.btNewMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'New request (M) 72h+', todayDate, 10);
-  v.btNewMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'New request (M) 72h+', todayDate, 10);
+  // Значение до "/" — сумма Mena 1x + Mena Leads 1x из таблицы; после "/" — ручной ввод.
+  var btSentMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
+  var btSentMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'BT Sent for processing (M) 72h+', todayDate, 10);
+  v.btSentTotal = sumValues_(btSentMena1x, btSentMenaLeads1x);
+  var btNewMena1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena 1x', 'New request (M) 72h+', todayDate, 10);
+  var btNewMenaLeads1x = valueNearAnchor_(SHEETS.ZAVISSHIE, 'Mena Leads 1x', 'New request (M) 72h+', todayDate, 10);
+  v.btNewTotal = sumValues_(btNewMena1x, btNewMenaLeads1x);
 
   v.smpSent = valueByLabel_(SHEETS.ZAVISSHIE, 'SMP Sent for processing 72h+', todayDate);
   v.smpNew = valueByLabel_(SHEETS.ZAVISSHIE, 'New request 72h+', todayDate);
@@ -258,10 +258,10 @@ var TEMPLATE =
   'SMP M: {{zavSmp}} / {{zavSmpSecond}}\n' +
   'In Progress (BT/SMP): {{inProgressBt}} / {{inProgressSmp}}\n' +
   '\n' +
-  'BT Sent for processing (M) 72h+ MENA 1X / Leads 1X : {{btSentMena1x}}  / {{btSentMenaLeads1x}}\n' +
-  'BT New request (M) 72h+  MENA 1X / Leads 1X: {{btNewMena1x}} / {{btNewMenaLeads1x}}\n' +
-  'SMP Sent for processing (M) 72h+ : {{smpSent}}\n' +
-  'SMP New Request 72h+: {{smpNew}}\n' +
+  'BT Sent for processing (M) 72h+ MENA 1X / Leads 1X : {{btSentTotal}}  / {{btSentSecond}}\n' +
+  'BT New request (M) 72h+  MENA 1X / Leads 1X: {{btNewTotal}} / {{btNewSecond}}\n' +
+  'SMP Sent for processing (M) 72h+ : {{smpSent}} / {{smpSentSecond}}\n' +
+  'SMP New Request 72h+: {{smpNew}} / {{smpNewSecond}}\n' +
   '\n' +
   'Чат 72: {{chatLink}}\n' +
   'Ожидают ответа: {{waiting}}\n' +
@@ -279,7 +279,8 @@ var TEMPLATE =
 var MANUAL_SECOND_VALUE_KEYS = [
   'apiTeamB', 'pspSecond', 'btMenaLeads1x', 'smpSecond',
   'l2l1MenaLeads1x', 'l1MenaLeads1x', 'fraudMenaLeads1x',
-  'zavApi', 'zavBtMenaLeads1x', 'zavSmpSecond', 'inProgressSmp'
+  'zavApi', 'zavBtMenaLeads1x', 'zavSmpSecond', 'inProgressSmp',
+  'btSentSecond', 'btNewSecond', 'smpSentSecond', 'smpNewSecond'
 ];
 
 /**

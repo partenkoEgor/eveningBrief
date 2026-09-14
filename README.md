@@ -88,6 +88,13 @@ clasp push
 - Зависшие SMP M → «Зависшие тикеты», строка 16 «SMP M»
 - In Progress (BT/SMP) → «Зависшие тикеты», сумма строк 23, 33 и 43
   («PT 24 часа In Progress» в блоках Mena 1x, Mena Leads 1x и SMP)
-
-Полностью автоматические строки (обе части, MENA 1X и Leads 1X, из
-таблицы): «BT Sent for processing 72h+» и «BT New request 72h+».
+- BT Sent for processing 72h+ → «Зависшие тикеты», сумма строк
+  «BT Sent for processing (M) 72h+» в блоках Mena 1x и Mena Leads 1x;
+  второе число (после «/») — вручную
+- BT New request 72h+ → «Зависшие тикеты», сумма строк
+  «New request (M) 72h+» в блоках Mena 1x и Mena Leads 1x; второе
+  число (после «/») — вручную
+- SMP Sent for processing 72h+ → «Зависшие тикеты», строка «SMP Sent
+  for processing 72h+»; второе число (после «/») — вручную
+- SMP New Request 72h+ → «Зависшие тикеты», строка «New request 72h+»;
+  второе число (после «/») — вручную
