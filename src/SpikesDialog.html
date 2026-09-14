@@ -1,0 +1,258 @@
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; margin: 0; padding: 12px 16px; }
+  h3 { margin: 4px 0 8px; font-size: 14px; }
+  h4 { margin: 12px 0 4px; font-size: 13px; }
+  .hint { font-size: 11px; color: #666; margin: -4px 0 8px; }
+  .row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+  label { display: block; font-weight: bold; margin-bottom: 2px; }
+  input[type="date"], select {
+    box-sizing: border-box; padding: 4px 6px; font-size: 13px;
+  }
+  .actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+  button {
+    padding: 6px 14px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
+    border-radius: 4px; background: #f7f7f7;
+  }
+  button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  button[disabled] { opacity: .5; cursor: default; }
+  #status, #paintStatus { font-size: 12px; color: #188038; }
+  #error { font-size: 12px; color: #c5221f; white-space: pre-wrap; }
+  #warnings { font-size: 12px; color: #b06000; white-space: pre-wrap; margin-top: 6px; }
+  #summary { font-size: 12px; color: #444; margin-top: 8px; }
+  #results { margin-top: 4px; max-height: 420px; overflow-y: auto; border-top: 1px solid #eee; }
+  .spike { padding: 3px 0; border-bottom: 1px solid #f2f2f2; line-height: 1.4; }
+  .spike .lbl { font-weight: bold; }
+  .spike .num { font-family: monospace; }
+  .spike .where { color: #888; font-size: 11px; }
+  .icon { display: inline-block; width: 14px; }
+  .bad { color: #c5221f; }
+  .ok { color: #888; }
+  details > summary { cursor: pointer; margin: 12px 0 4px; font-weight: bold; }
+  .warn-box { background: #fff8e1; padding: 6px 8px; border-radius: 4px; margin-top: 8px; }
+</style>
+
+<h3>Поиск аномалий в процентных метриках</h3>
+<div class="hint">
+  Скрипт сравнивает значение выбранного дня с нормой этой же строки за
+  предыдущие дни месяца. Сканируются все листы с дневными процентными
+  строками — они находятся автоматически, по формату ячеек.
+</div>
+
+<div class="row">
+  <div>
+    <label>Дата</label>
+    <input type="date" id="spikeDate">
+  </div>
+  <div>
+    <label>Чувствительность</label>
+    <select id="sensitivity">
+      <option value="low">Низкая — только явные</option>
+      <option value="medium" selected>Средняя</option>
+      <option value="high">Высокая — показать всё</option>
+    </select>
+  </div>
+  <div>
+    <button class="primary" onclick="search()">Найти аномалии</button>
+  </div>
+  <div><span id="status"></span></div>
+</div>
+<div id="error"></div>
+
+<div id="summary"></div>
+<div id="warnings"></div>
+<div id="results"></div>
+
+<div class="actions">
+  <button id="paintBtn" onclick="paint()" disabled>Подсветить в таблице</button>
+  <button id="clearBtn" onclick="unpaint()">Убрать подсветку</button>
+  <span id="paintStatus"></span>
+</div>
+<div class="hint" style="margin-top:6px;">
+  Подсветка меняет общую таблицу — её видят все. «Убрать подсветку» вернёт
+  прежние цвета; ячейки, перекрашенные вручную, останутся нетронутыми.
+</div>
+
+<script>
+  var lastSpikes = [];
+  var lastDate = '';
+
+  google.script.run.withSuccessHandler(function (iso) {
+    document.getElementById('spikeDate').value = iso;
+  }).getTodayDate();
+
+  function el(id) { return document.getElementById(id); }
+
+  function pct(fraction) { return (fraction * 100).toFixed(1) + ' %'; }
+
+  function points(diff) {
+    var sign = diff > 0 ? '+' : '−';
+    return sign + Math.abs(diff * 100).toFixed(1) + ' п.п.';
+  }
+
+  function search() {
+    el('status').textContent = 'Считаю…';
+    el('error').textContent = '';
+    el('warnings').textContent = '';
+    el('summary').textContent = '';
+    el('results').innerHTML = '';
+    el('paintBtn').disabled = true;
+
+    google.script.run
+      .withSuccessHandler(render)
+      .withFailureHandler(function (err) {
+        el('status').textContent = '';
+        el('error').textContent = 'Ошибка: ' + (err && err.message ? err.message : err);
+      })
+      .findSpikes({
+        date: el('spikeDate').value,
+        sensitivity: el('sensitivity').value
+      });
+  }
+
+  function render(res) {
+    el('status').textContent = 'Готово';
+    lastSpikes = res.spikes || [];
+    lastDate = res.date || '';
+
+    var s = res.stats;
+    el('summary').textContent =
+      'Найдено аномалий: ' + lastSpikes.length +
+      ' · листов просканировано: ' + s.sheetsScanned +
+      ' · строк проверено: ' + s.rowsChecked +
+      ' · пропущено (мало истории): ' + s.rowsSkipped;
+
+    if (res.warnings && res.warnings.length) {
+      var w = document.createElement('div');
+      w.className = 'warn-box';
+      w.textContent = '⚠ ' + res.warnings.join('\n');
+      el('warnings').appendChild(w);
+    }
+
+    if (!lastSpikes.length) {
+      el('results').innerHTML =
+        '<div class="hint" style="margin-top:10px;">На эту дату всплесков не найдено.</div>';
+      return;
+    }
+
+    // Группируем по листам, листы — по числу находок.
+    var groups = {};
+    lastSpikes.forEach(function (sp) {
+      if (!groups[sp.sheet]) groups[sp.sheet] = [];
+      groups[sp.sheet].push(sp);
+    });
+    var names = Object.keys(groups).sort(function (a, b) {
+      return groups[b].length - groups[a].length;
+    });
+
+    var out = el('results');
+    names.forEach(function (name) {
+      var list = groups[name];
+      // Трафик + Конверсия может один перевесить все остальные листы —
+      // прячем его под раскрывашку.
+      var collapse = name.indexOf('Трафик') !== -1 && list.length > 5;
+      var head, body;
+
+      if (collapse) {
+        var d = document.createElement('details');
+        var sum = document.createElement('summary');
+        sum.textContent = name + ' — ' + list.length;
+        d.appendChild(sum);
+        out.appendChild(d);
+        body = d;
+      } else {
+        head = document.createElement('h4');
+        head.textContent = name + ' — ' + list.length;
+        out.appendChild(head);
+        body = out;
+      }
+
+      list.forEach(function (sp) {
+        body.appendChild(spikeRow(sp));
+      });
+    });
+
+    el('paintBtn').disabled = false;
+  }
+
+  function spikeRow(sp) {
+    var div = document.createElement('div');
+    div.className = 'spike';
+
+    var icon = document.createElement('span');
+    icon.className = 'icon ' + (sp.bad ? 'bad' : 'ok');
+    icon.textContent = sp.diff > 0 ? '▲' : '▼';
+    div.appendChild(icon);
+
+    var lbl = document.createElement('span');
+    lbl.className = 'lbl';
+    lbl.textContent = sp.label || '(без подписи)';
+    div.appendChild(lbl);
+
+    var num = document.createElement('span');
+    num.className = 'num';
+    num.textContent =
+      ' ' + pct(sp.value) + ' → медиана ' + pct(sp.median) +
+      ' (' + points(sp.diff) + ', z = ' + (sp.z === null ? '∞' : sp.z.toFixed(1)) + ')';
+    div.appendChild(num);
+
+    var where = document.createElement('div');
+    where.className = 'where';
+    where.textContent = 'строка ' + sp.row + ', столбец ' + colLetter(sp.col);
+    div.appendChild(where);
+
+    return div;
+  }
+
+  function colLetter(col) {
+    var s = '';
+    while (col > 0) {
+      var rem = (col - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      col = Math.floor((col - 1) / 26);
+    }
+    return s;
+  }
+
+  function paint() {
+    el('paintStatus').textContent = 'Крашу…';
+    el('error').textContent = '';
+    setButtons(true);
+    google.script.run
+      .withSuccessHandler(function (res) {
+        setButtons(false);
+        el('paintStatus').textContent = res.ok
+          ? 'Подсвечено ячеек: ' + res.painted
+          : '';
+        if (!res.ok) el('error').textContent = res.message;
+      })
+      .withFailureHandler(function (err) {
+        setButtons(false);
+        el('paintStatus').textContent = '';
+        el('error').textContent = 'Ошибка: ' + (err && err.message ? err.message : err);
+      })
+      .highlightSpikes(lastSpikes, lastDate);
+  }
+
+  function unpaint() {
+    el('paintStatus').textContent = 'Убираю…';
+    el('error').textContent = '';
+    setButtons(true);
+    google.script.run
+      .withSuccessHandler(function (res) {
+        setButtons(false);
+        el('paintStatus').textContent = res.message || '';
+        if (!res.ok) el('error').textContent = res.message;
+      })
+      .withFailureHandler(function (err) {
+        setButtons(false);
+        el('paintStatus').textContent = '';
+        el('error').textContent = 'Ошибка: ' + (err && err.message ? err.message : err);
+      })
+      .clearSpikeHighlight();
+  }
+
+  function setButtons(busy) {
+    el('clearBtn').disabled = busy;
+    el('paintBtn').disabled = busy || !lastSpikes.length;
+  }
+</script>

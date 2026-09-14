@@ -28,6 +28,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Вечерний отчёт')
     .addItem('Сформировать отчёт…', 'openReportDialog')
+    .addItem('Поиск аномалий…', 'openSpikesDialog')
     .addToUi();
 }
 
@@ -334,4 +335,505 @@ function parseIsoDate_(iso) {
 
 function formatDisplayDate_(date) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd.MM.yyyy');
+}
+
+// ========== ПОИСК АНОМАЛИЙ (ВСПЛЕСКОВ) ==========
+//
+// Ищем процентные метрики, которые в выбранный день заметно выбились из
+// собственной нормы за предыдущие дни месяца.
+//
+// Номера строк НЕ прописаны жёстко: книга заводится заново каждый месяц,
+// и вставка одного блока сдвинула бы все номера. Инвариант — числовой
+// формат ячейки (0.00% / 0.0% / 0%), по нему строки и находятся.
+//
+// Столбец дня тоже не хардкодим: в строке 2 у всех дневных листов лежит
+// число вида "день + месяц/100" (1.08, 2.08, ... 31.08). Поиск по этой
+// шапке разом покрывает все раскладки: C..AG, D..AH, E..AI и парные
+// столбцы на листе "Трафик + Конверсия" (трафик + конверсия на день).
+
+var SPIKE_PRESETS = {
+  low: { zMin: 5.0, minAbsDelta: 0.15, minAbsLevel: 0.10 },
+  medium: { zMin: 3.5, minAbsDelta: 0.10, minAbsLevel: 0.05 },
+  high: { zMin: 2.5, minAbsDelta: 0.05, minAbsLevel: 0.03 }
+};
+
+var SPIKE_MIN_HISTORY = 5;       // меньше точек — по строке судить рано
+var SPIKE_MIN_DAY_COLUMNS = 5;   // меньше столбцов-дней — лист не дневной
+var SPIKE_PERCENT_ROW_RATIO = 0.6;
+var SPIKE_COLOR = '#f4c7c3';
+var SPIKE_MAX_CELLS = 400;
+var HIGHLIGHT_PROP = 'spikeHighlight';
+
+function openSpikesDialog() {
+  var html = HtmlService.createTemplateFromFile('SpikesDialog')
+    .evaluate()
+    .setWidth(720)
+    .setHeight(800);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Поиск аномалий');
+}
+
+// ---------- геометрия листа ----------
+
+/** Столбцы дней по шапке (строка 2). Возвращает null, если дневной оси нет —
+ *  так из скана сами собой выпадают недельные и сводные листы. */
+function resolveDayColumns_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 2 || sheet.getLastRow() < 3) return null;
+
+  var header = sheet.getRange(2, 1, 1, lastCol).getValues()[0];
+  var marks = [];
+  for (var i = 0; i < header.length; i++) {
+    var v = header[i];
+    if (typeof v !== 'number' || !isFinite(v) || v < 1 || v >= 32) continue;
+    var day = Math.floor(v);
+    marks.push({ col: i + 1, day: day, month: Math.round((v - day) * 100) });
+  }
+  if (marks.length < SPIKE_MIN_DAY_COLUMNS) return null;
+
+  var byDay = {};
+  var months = {};
+  for (var m = 0; m < marks.length; m++) {
+    var mark = marks[m];
+    var nextCol = (m + 1 < marks.length) ? marks[m + 1].col : mark.col + 1;
+    // Ширина дня — до следующего заголовка, но не больше двух столбцов:
+    // на "Трафик + Конверсия" это как раз пара "трафик / конверсия".
+    var span = Math.max(1, Math.min(nextCol - mark.col, 2));
+    var cols = byDay[mark.day] || [];
+    for (var s = 0; s < span; s++) cols.push(mark.col + s);
+    byDay[mark.day] = cols;
+    if (mark.month) months[mark.month] = (months[mark.month] || 0) + 1;
+  }
+  return { byDay: byDay, firstDayCol: marks[0].col, months: months };
+}
+
+/** Месяц листа — самый часто встречающийся в шапке. */
+function modalMonth_(months) {
+  var best = null;
+  var bestCount = 0;
+  for (var m in months) {
+    if (months[m] > bestCount) {
+      bestCount = months[m];
+      best = Number(m);
+    }
+  }
+  return best;
+}
+
+/** Для одной строки выбирает в каждом дне ту колонку, что отформатирована
+ *  как проценты. На парных столбцах это отсекает колонку трафика. */
+function percentColsForRow_(formatRow, valueRow, byDay) {
+  var colByDay = {};
+  var pctDays = 0;
+  var totalDays = 0;
+  var numeric = 0;
+
+  for (var day in byDay) {
+    totalDays++;
+    var cols = byDay[day];
+    var chosen = null;
+    for (var i = 0; i < cols.length; i++) {
+      var fmt = formatRow[cols[i] - 1];
+      if (fmt && fmt.toString().indexOf('%') !== -1) {
+        chosen = cols[i];
+        break;
+      }
+    }
+    if (chosen === null) continue;
+    pctDays++;
+    colByDay[day] = chosen;
+    if (toNumber_(valueRow[chosen - 1]) !== null) numeric++;
+  }
+  return { colByDay: colByDay, pctDays: pctDays, totalDays: totalDays, numeric: numeric };
+}
+
+/** Строка процентная, если большинство дневных ячеек в процентном формате
+ *  и в ней есть живые числа. Числовая проверка отсекает строки со
+ *  значками ▲/▼/○ — они текстовые. */
+function isPercentRow_(info) {
+  if (info.totalDays === 0) return false;
+  if (info.numeric < SPIKE_MIN_HISTORY) return false;
+  return info.pctDays >= info.totalDays * SPIKE_PERCENT_ROW_RATIO;
+}
+
+/** Подпись строки — первая непустая ячейка слева от первого дня.
+ *  На "ЗТ по ГЕО API" дни начинаются с E, поэтому сюда попадают подписи
+ *  из столбца D, а не только из B. */
+function rowLabel_(valueRow, firstDayCol) {
+  for (var col = firstDayCol - 1; col >= 1; col--) {
+    var v = normalize_(valueRow[col - 1]);
+    if (v) return v;
+  }
+  return '';
+}
+
+/** Тип метрики определяем по тексту подписи, а не по номеру строки.
+ *  'зменени' покрывает и "Изменение", и "изменения", и "Изменения". */
+function metricKind_(sheetName, label) {
+  if (sheetName.indexOf('Трафик') !== -1) return 'conv';
+  if (label.indexOf('От нагрузки') !== -1) return 'load';
+  return 'delta';
+}
+
+// ---------- статистика ----------
+
+function median_(values) {
+  if (!values.length) return null;
+  var arr = values.slice().sort(function (a, b) { return a - b; });
+  var mid = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+}
+
+/** Медиана и MAD — в отличие от среднего и σ, не разъезжаются от одного
+ *  выброса в истории (а выброс мы как раз и ищем). */
+function robustStats_(series) {
+  var med = median_(series);
+  var dev = [];
+  for (var i = 0; i < series.length; i++) dev.push(Math.abs(series[i] - med));
+  var mad = median_(dev);
+  return { median: med, mad: mad, sigma: 1.4826 * mad };
+}
+
+/** Всплеск = отклонение больше минимального порога И больше типичного
+ *  разброса этой же строки. Возвращает null, если это не всплеск.
+ *
+ *  sigma === 0 значит "история строки константна" (частое на тихих
+ *  строках, простоявших весь месяц в нуле). z тогда не определён, и мы
+ *  считаем условие выполненным: иначе прыжок с 0% до 40% остался бы
+ *  незамеченным — а это худшее, что здесь можно пропустить. */
+function evaluateSpike_(x, stats, kind, preset) {
+  var diff = x - stats.median;
+  var absDiff = Math.abs(diff);
+  var minAbs = (kind === 'delta') ? preset.minAbsDelta : preset.minAbsLevel;
+  if (absDiff < minAbs) return null;
+
+  var z = null;
+  if (stats.sigma > 0) {
+    z = absDiff / stats.sigma;
+    if (z < preset.zMin) return null;
+  }
+
+  return {
+    z: z,
+    diff: diff,
+    direction: diff > 0 ? 'рост' : 'падение',
+    // bad влияет только на иконку и порядок сортировки, находку не скрывает
+    bad: kind === 'conv' ? diff < 0 : (kind === 'load' ? diff > 0 : true)
+  };
+}
+
+// ---------- скан ----------
+
+function scanSheetForSpikes_(sheet, targetDate, preset, out) {
+  var name = sheet.getName();
+  var geom = resolveDayColumns_(sheet);
+  if (!geom) return;
+
+  var day = targetDate.getDate();
+  var month = modalMonth_(geom.months);
+  if (month && month !== targetDate.getMonth() + 1) {
+    out.warnings.push('«' + name + '» — данные за другой месяц, лист пропущен');
+    return;
+  }
+  if (!geom.byDay[day]) {
+    out.warnings.push('«' + name + '» — нет столбца для этого дня, лист пропущен');
+    return;
+  }
+
+  out.stats.sheetsScanned++;
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var range = sheet.getRange(1, 1, lastRow, lastCol);
+  var values = range.getValues();
+  var formats = range.getNumberFormats();
+
+  for (var r = 3; r <= lastRow; r++) {
+    var valueRow = values[r - 1];
+    var info = percentColsForRow_(formats[r - 1], valueRow, geom.byDay);
+    if (!isPercentRow_(info)) continue;
+
+    out.stats.rowsChecked++;
+
+    var todayCol = info.colByDay[day];
+    if (!todayCol) continue;
+    var x = toNumber_(valueRow[todayCol - 1]);
+    if (x === null) continue;
+
+    // История: те же дни этой же строки. Пустые ячейки просто не попадают
+    // в выборку — это верно и для дыр в середине строки, и для стран,
+    // подключённых в середине месяца. Пропуск значит "не наблюдалось".
+    var series = [];
+    for (var d = 1; d < day; d++) {
+      var col = info.colByDay[d];
+      if (!col) continue;
+      var n = toNumber_(valueRow[col - 1]);
+      if (n !== null) series.push(n);
+    }
+    if (series.length < SPIKE_MIN_HISTORY) {
+      out.stats.rowsSkipped++;
+      continue;
+    }
+
+    var label = rowLabel_(valueRow, geom.firstDayCol);
+    var kind = metricKind_(name, label);
+    var stats = robustStats_(series);
+    var hit = evaluateSpike_(x, stats, kind, preset);
+    if (!hit) continue;
+
+    out.spikes.push({
+      sheet: name,
+      row: r,
+      col: todayCol,
+      label: label,
+      kind: kind,
+      value: x,
+      median: stats.median,
+      z: hit.z,
+      diff: hit.diff,
+      direction: hit.direction,
+      bad: hit.bad,
+      day: day
+    });
+  }
+}
+
+/**
+ * Точка входа для диалога. payload = { date: 'yyyy-MM-dd', sensitivity }.
+ * Ничего в таблице не меняет — только читает.
+ */
+function findSpikes(payload) {
+  var targetDate = parseIsoDate_(payload.date);
+  var preset = SPIKE_PRESETS[payload.sensitivity] || SPIKE_PRESETS.medium;
+
+  var out = {
+    date: formatDisplayDate_(targetDate),
+    spikes: [],
+    warnings: [],
+    stats: { sheetsScanned: 0, rowsChecked: 0, rowsSkipped: 0 }
+  };
+
+  var sheets = SpreadsheetApp.getActive().getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    scanSheetForSpikes_(sheets[i], targetDate, preset, out);
+  }
+
+  // Сильнее всего выбившиеся — наверх; константная история (z = ∞) первой.
+  out.spikes.sort(function (a, b) {
+    var az = a.z === null ? Infinity : a.z;
+    var bz = b.z === null ? Infinity : b.z;
+    return bz - az;
+  });
+
+  return out;
+}
+
+// ---------- подсветка ----------
+
+function columnLetter_(col) {
+  var s = '';
+  while (col > 0) {
+    var rem = (col - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    col = Math.floor((col - 1) / 26);
+  }
+  return s;
+}
+
+function formatPercent_(fraction) {
+  var n = toNumber_(fraction);
+  return n === null ? '' : (n * 100).toFixed(1) + ' %';
+}
+
+function sameColor_(a, b) {
+  return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function saveHighlightRecord_(record) {
+  PropertiesService.getDocumentProperties()
+    .setProperty(HIGHLIGHT_PROP, JSON.stringify(record));
+}
+
+function loadHighlightRecord_() {
+  var raw = PropertiesService.getDocumentProperties().getProperty(HIGHLIGHT_PROP);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearHighlightRecord_() {
+  PropertiesService.getDocumentProperties().deleteProperty(HIGHLIGHT_PROP);
+}
+
+/** Снимает подсветку и возвращает число восстановленных ячеек.
+ *  Ячейку, перекрашенную человеком вручную, не трогает. */
+function clearHighlightInternal_() {
+  var record = loadHighlightRecord_();
+  if (!record || !record.sheets) return 0;
+
+  var ss = SpreadsheetApp.getActive();
+  var restored = 0;
+
+  for (var i = 0; i < record.sheets.length; i++) {
+    var entry = record.sheets[i];
+    var sheet = ss.getSheetByName(entry.s);
+    if (!sheet) continue;
+
+    var minRow = Infinity, maxRow = 0, minCol = Infinity, maxCol = 0;
+    for (var j = 0; j < entry.c.length; j++) {
+      minRow = Math.min(minRow, entry.c[j][0]);
+      maxRow = Math.max(maxRow, entry.c[j][0]);
+      minCol = Math.min(minCol, entry.c[j][1]);
+      maxCol = Math.max(maxCol, entry.c[j][1]);
+    }
+    var backgrounds = sheet
+      .getRange(minRow, minCol, maxRow - minRow + 1, maxCol - minCol + 1)
+      .getBackgrounds();
+
+    var groups = {};
+    for (var k = 0; k < entry.c.length; k++) {
+      var row = entry.c[k][0];
+      var col = entry.c[k][1];
+      var current = backgrounds[row - minRow][col - minCol];
+      if (!sameColor_(current, SPIKE_COLOR)) continue;
+      var prev = entry.p[entry.c[k][2]];
+      if (!groups[prev]) groups[prev] = [];
+      groups[prev].push(columnLetter_(col) + row);
+      restored++;
+    }
+    for (var color in groups) {
+      sheet.getRangeList(groups[color]).setBackground(color);
+    }
+  }
+
+  clearHighlightRecord_();
+  return restored;
+}
+
+/**
+ * Точка входа для диалога: красит ячейки найденных всплесков.
+ * МЕНЯЕТ ОБЩУЮ ТАБЛИЦУ — вызывается только по явному нажатию кнопки.
+ */
+function highlightSpikes(cells, dateLabel) {
+  if (!cells || !cells.length) {
+    return { ok: false, message: 'Нечего подсвечивать' };
+  }
+  if (cells.length > SPIKE_MAX_CELLS) {
+    return {
+      ok: false,
+      message: 'Слишком много ячеек (' + cells.length + '). Понизьте чувствительность.'
+    };
+  }
+
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(10000)) {
+    return { ok: false, message: 'Кто-то уже меняет подсветку, попробуйте через несколько секунд' };
+  }
+
+  try {
+    // Старую подсветку снимаем всегда — так повторный запуск, смена даты
+    // и смена чувствительности идемпотентны, и живой набор всегда один.
+    clearHighlightInternal_();
+
+    var ss = SpreadsheetApp.getActive();
+    var bySheet = {};
+    for (var i = 0; i < cells.length; i++) {
+      var name = cells[i].sheet;
+      if (!bySheet[name]) bySheet[name] = [];
+      bySheet[name].push(cells[i]);
+    }
+
+    var record = { date: dateLabel || '', sheets: [] };
+
+    for (var sheetName in bySheet) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet) continue;
+      var list = bySheet[sheetName];
+
+      var minRow = Infinity, maxRow = 0, minCol = Infinity, maxCol = 0;
+      for (var j = 0; j < list.length; j++) {
+        minRow = Math.min(minRow, list[j].row);
+        maxRow = Math.max(maxRow, list[j].row);
+        minCol = Math.min(minCol, list[j].col);
+        maxCol = Math.max(maxCol, list[j].col);
+      }
+      var backgrounds = sheet
+        .getRange(minRow, minCol, maxRow - minRow + 1, maxCol - minCol + 1)
+        .getBackgrounds();
+
+      var palette = [];
+      var entries = [];
+      var a1 = [];
+      for (var k = 0; k < list.length; k++) {
+        var color = backgrounds[list[k].row - minRow][list[k].col - minCol];
+        var pi = palette.indexOf(color);
+        if (pi === -1) {
+          palette.push(color);
+          pi = palette.length - 1;
+        }
+        entries.push([list[k].row, list[k].col, pi]);
+        a1.push(columnLetter_(list[k].col) + list[k].row);
+      }
+
+      sheet.getRangeList(a1).setBackground(SPIKE_COLOR);
+      record.sheets.push({ s: sheetName, p: palette, c: entries });
+    }
+
+    var json = JSON.stringify(record);
+    if (json.length > 8500) {
+      return { ok: false, message: 'Слишком много ячеек для запоминания. Понизьте чувствительность.' };
+    }
+    saveHighlightRecord_(record);
+    SpreadsheetApp.flush();
+    return { ok: true, painted: cells.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Точка входа для диалога: снимает подсветку, возвращая прежние цвета. */
+function clearSpikeHighlight() {
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(10000)) {
+    return { ok: false, message: 'Кто-то уже меняет подсветку, попробуйте через несколько секунд' };
+  }
+  try {
+    var record = loadHighlightRecord_();
+    if (!record) {
+      return { ok: true, restored: 0, message: 'Подсветка не найдена — нечего убирать' };
+    }
+    var restored = clearHighlightInternal_();
+    SpreadsheetApp.flush();
+    var from = record.date ? ' от ' + record.date : '';
+    return { ok: true, restored: restored, message: 'Убрана подсветка' + from + ', ячеек: ' + restored };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Служебная: печатает найденный набор процентных строк в лог.
+ *  Запускать при смене месяца, чтобы сверить, что автопоиск не поехал. */
+function debugListPercentRows() {
+  var sheets = SpreadsheetApp.getActive().getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    var sheet = sheets[i];
+    var geom = resolveDayColumns_(sheet);
+    if (!geom) {
+      Logger.log('— %s: дневной оси нет, пропущен', sheet.getName());
+      continue;
+    }
+    var lastRow = sheet.getLastRow();
+    var range = sheet.getRange(1, 1, lastRow, sheet.getLastColumn());
+    var values = range.getValues();
+    var formats = range.getNumberFormats();
+    var found = [];
+    for (var r = 3; r <= lastRow; r++) {
+      var info = percentColsForRow_(formats[r - 1], values[r - 1], geom.byDay);
+      if (!isPercentRow_(info)) continue;
+      found.push(r + ' «' + rowLabel_(values[r - 1], geom.firstDayCol) + '»');
+    }
+    Logger.log('%s (%s строк): %s', sheet.getName(), found.length, found.join('; '));
+  }
 }
