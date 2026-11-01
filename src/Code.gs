@@ -197,8 +197,12 @@ var WITHDRAWALS_SOURCE = {
  * Каждая строка с этой датой фиксации даёт +1, включая дубли.
  * Даты создания вывода, статусы, суммы и уникальность ID не используются.
  * Исходную таблицу не изменяет.
+ *
+ * В warnings складывается сообщение, если листа за месяц даты отчёта в
+ * книге не нашлось: иначе отсутствие листа ничем себя не выдаёт, потому
+ * что ноль выводов выглядит как обычное значение.
  */
-function countWithdrawalsByDate_(reportDate) {
+function countWithdrawalsByDate_(reportDate, warnings) {
   var source;
   try {
     source = SpreadsheetApp.openById(WITHDRAWALS_SOURCE.spreadsheetId);
@@ -212,14 +216,14 @@ function countWithdrawalsByDate_(reportDate) {
   var timezone = source.getSpreadsheetTimeZone();
   var locale = source.getSpreadsheetLocale();
   var sheets = source.getSheets();
-  var foundSheets = 0;
+  var foundNames = [];
   var total = 0;
 
   for (var i = 0; i < sheets.length; i++) {
     var sheet = sheets[i];
     var sheetName = normalize_(sheet.getName()).toLowerCase();
     if (WITHDRAWALS_SOURCE.monthSheets.indexOf(sheetName) === -1) continue;
-    foundSheets++;
+    foundNames.push(sheetName);
 
     var lastRow = sheet.getLastRow();
     var lastColumn = sheet.getLastColumn();
@@ -255,9 +259,21 @@ function countWithdrawalsByDate_(reportDate) {
     }
   }
 
-  if (foundSheets === 0) {
+  if (foundNames.length === 0) {
     throw new Error('В таблице выводов не найдены месячные листы: Январь, Февраль и т. д.');
   }
+
+  // Лист нужного месяца мог быть назван иначе («Ноябрь 2026», «Ноя», «11»)
+  // и тогда просто не попал в обход. Ошибку бросать нельзя — отчёт должен
+  // сформироваться, — но и промолчать нельзя: выводы окажутся нулевыми.
+  var expectedMonth = WITHDRAWALS_SOURCE.monthSheets[reportDate.getMonth()];
+  if (foundNames.indexOf(expectedMonth) === -1) {
+    warnings.push(
+      'В таблице выводов не найден лист «' + expectedMonth + '» — выводы ' +
+      'посчитаны без него. Проверьте, что лист назван ровно названием месяца.'
+    );
+  }
+
   return total;
 }
 
@@ -315,7 +331,7 @@ var FIELD_LABELS = {
   smpNew: 'SMP New request 72h+'
 };
 
-function collectReportValues_(todayDate) {
+function collectReportValues_(todayDate, warnings) {
   var v = {};
 
   // «Создано тикетов» берём за вчера только если вчера находится
@@ -332,7 +348,7 @@ function collectReportValues_(todayDate) {
     );
   }
 
-  v.vyvody = countWithdrawalsByDate_(todayDate);
+  v.vyvody = countWithdrawalsByDate_(todayDate, warnings);
 
   // Нагрузка по процессам. Первое значение подтягивает скрипт,
   // вечернее значение вводится в диалоге.
@@ -624,8 +640,8 @@ function generateReport(payload) {
   payload = payload || {};
 
   var todayDate = parseIsoDate_(payload.date);
-  var raw = collectReportValues_(todayDate);
   var warnings = [];
+  var raw = collectReportValues_(todayDate, warnings);
 
   // На 1-е число не обращаемся к таблице предыдущего месяца.
   if (todayDate.getDate() === 1) {
