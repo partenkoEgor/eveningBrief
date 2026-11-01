@@ -32,7 +32,7 @@
   <div>
     <label>Дата (сегодня)</label>
     <input type="date" id="reportDate">
-    <div class="hint">«Создано тикетов» возьмётся за день до этой даты, всё остальное — за эту дату.</div>
+    <div class="hint">Подставляется дата вашего компьютера. «Создано тикетов» возьмётся за день до неё, всё остальное — за неё саму.</div>
   </div>
 </div>
 <div class="row">
@@ -112,9 +112,17 @@
     grid.appendChild(wrap);
   });
 
-  google.script.run.withSuccessHandler(function (iso) {
-    document.getElementById('reportDate').value = iso;
-  }).getTodayDate();
+  // Дату считаем в браузере, а не на сервере. Часовой пояс проекта
+  // (Europe/Moscow) вечером уже на следующих сутках, и серверная дата
+  // подставляла бы завтрашнее число.
+  function localIsoDate() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+  }
+
+  document.getElementById('reportDate').value = localIsoDate();
 
   function generate() {
     document.getElementById('status').textContent = 'Считаю…';

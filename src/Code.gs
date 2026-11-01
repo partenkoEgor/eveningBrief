@@ -44,12 +44,6 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/** Сегодняшняя дата (ISO yyyy-MM-dd) — значение по умолчанию для единственного поля даты в диалоге. */
-function getTodayDate() {
-  var tz = Session.getScriptTimeZone();
-  return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-}
-
 // ---------- низкоуровневый поиск по подписям ----------
 
 function normalize_(v) {

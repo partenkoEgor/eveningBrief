@@ -76,9 +76,15 @@
   var lastSpikes = [];
   var lastDate = '';
 
-  google.script.run.withSuccessHandler(function (iso) {
-    document.getElementById('spikeDate').value = iso;
-  }).getTodayDate();
+  // Дата считается в браузере — см. тот же комментарий в Dialog.html.
+  function localIsoDate() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+  }
+
+  document.getElementById('spikeDate').value = localIsoDate();
 
   function el(id) { return document.getElementById(id); }
 
