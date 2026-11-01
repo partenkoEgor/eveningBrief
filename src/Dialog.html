@@ -1,116 +1,405 @@
 <style>
-  body { font-family: Arial, sans-serif; font-size: 13px; margin: 0; padding: 12px 16px; }
-  h3 { margin: 4px 0 8px; font-size: 14px; }
-  .hint { font-size: 11px; color: #666; margin: -4px 0 8px; }
-  .row { display: flex; gap: 10px; margin-bottom: 8px; }
-  .row > div { flex: 1; }
-  .grid { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
-  .grid > div { flex: 1 1 47%; box-sizing: border-box; }
-  label { display: block; font-weight: bold; margin-bottom: 2px; }
-  input[type="date"], input[type="text"] {
-    width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 13px;
+  :root {
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #202124;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --blue: #1a73e8;
+    --blue-hover: #1765cc;
+    --green: #188038;
+    --red: #c5221f;
+    --warning: #9a6700;
+    --radius: 10px;
   }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+  }
+
+  .app {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .header h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+
+  .header .subtitle {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+
+  .field {
+    min-width: 0;
+  }
+
+  .field.full {
+    grid-column: 1 / -1;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  input[type="date"],
+  input[type="text"],
   textarea {
-    width: 100%; box-sizing: border-box; font-family: monospace; font-size: 12px;
-    padding: 6px; resize: vertical;
+    width: 100%;
+    border: 1px solid #cfd4dc;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    outline: none;
   }
-  #problems { height: 44px; }
-  #result { height: 220px; margin-top: 6px; }
-  .actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+
+  input[type="date"],
+  input[type="text"] {
+    height: 36px;
+    padding: 7px 9px;
+  }
+
+  textarea {
+    padding: 8px 9px;
+    resize: vertical;
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12);
+  }
+
+  .hint {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  #problems {
+    min-height: 70px;
+  }
+
+  #result {
+    min-height: 270px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .actions.main {
+    margin: 4px 0 12px;
+  }
+
   button {
-    padding: 6px 14px; font-size: 13px; cursor: pointer; border: 1px solid #ccc;
-    border-radius: 4px; background: #f7f7f7;
+    min-height: 36px;
+    padding: 7px 15px;
+    border: 1px solid #cfd4dc;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
   }
-  button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
-  #status { font-size: 12px; color: #188038; }
-  #error { font-size: 12px; color: #c5221f; white-space: pre-wrap; }
-  #warnings { font-size: 12px; color: #b06000; white-space: pre-wrap; margin-top: 6px; }
+
+  button:hover {
+    background: #f3f4f6;
+  }
+
+  button.primary {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  button.primary:hover {
+    background: var(--blue-hover);
+  }
+
+  #status,
+  #copyStatus {
+    color: var(--green);
+    font-size: 12px;
+  }
+
+  #error {
+    color: var(--red);
+    font-size: 12px;
+    white-space: pre-wrap;
+    margin-bottom: 8px;
+  }
+
+  #warnings {
+    color: var(--warning);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    margin-top: 8px;
+  }
+
+  .compact-card {
+    padding-bottom: 12px;
+  }
+
+  @media (max-width: 640px) {
+    body {
+      padding: 10px;
+    }
+
+    .grid {
+      grid-template-columns: 1fr;
+    }
+
+    .field.full {
+      grid-column: auto;
+    }
+
+    .card {
+      padding: 12px;
+    }
+
+    #result {
+      min-height: 230px;
+    }
+  }
 </style>
 
-<h3>1. Ручные поля (в таблице их нет — заполните перед формированием)</h3>
-<div class="row">
-  <div>
-    <label>Дата (сегодня)</label>
-    <input type="date" id="reportDate">
-    <div class="hint">Подставляется дата вашего компьютера. «Создано тикетов» возьмётся за день до неё, всё остальное — за неё саму.</div>
+<div class="app">
+  <div class="header">
+    <h2>Вечерний отчёт</h2>
+    <div class="subtitle">
+      Заполняются только вечерние и ручные данные. Готовый отчёт формируется после нажатия кнопки.
+    </div>
   </div>
-</div>
-<div class="row">
-  <div>
-    <label>Чат 72 (ссылка)</label>
-    <input type="text" id="chatLink" placeholder="https://...">
-  </div>
-  <div>
-    <label>Ожидают ответа</label>
-    <input type="text" id="waiting" placeholder="0">
-  </div>
-</div>
-<div class="row">
-  <div>
-    <label>Массовый Approved</label>
-    <input type="text" id="approved" placeholder="0">
-  </div>
-  <div>
-    <label>Ошибка - Статус</label>
-    <input type="text" id="errorStatus" placeholder="0">
-  </div>
-</div>
-<div>
-  <label>Проблемные области</label>
-  <textarea id="problems"></textarea>
-</div>
 
-<h3 style="margin-top:14px;">2. Вторые значения (после «/»)</h3>
-<div class="hint">Первое число в этих строках подтягивается из таблицы, второе — всегда вручную.</div>
-<div class="grid" id="secondValues"></div>
+  <div class="card compact-card">
+    <div class="grid">
+      <div class="field full">
+        <label for="reportDate">Дата</label>
+        <input type="date" id="reportDate">
+        <div class="hint">
+          Подставляется дата вашего компьютера. «Создано тикетов» берётся за предыдущий день. Если выбрано 1-е число месяца, прошлый месяц автоматически не открывается.
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="actions">
-  <button class="primary" onclick="generate()">Сформировать отчёт</button>
-  <span id="status"></span>
-</div>
-<div id="error"></div>
+  <div class="card">
+    <div class="section-title">Общие показатели</div>
+    <div class="grid">
+      <div class="field full">
+        <label for="vyvodyL1L2">Выводы L1-L2</label>
+        <input type="text" id="vyvodyL1L2" inputmode="numeric" placeholder="0">
+        <div class="hint">Введённое значение прибавится к выводам, которые скрипт подтянет из таблицы.</div>
+      </div>
+    </div>
+  </div>
 
-<h3 style="margin-top:14px;">3. Готовый текст (можно поправить перед копированием)</h3>
-<textarea id="result" placeholder="Нажмите «Сформировать отчёт»…"></textarea>
-<div id="warnings"></div>
-<div class="actions">
-  <button onclick="copyResult()">Скопировать</button>
-  <span id="copyStatus"></span>
+  <div class="card">
+    <div class="section-title">Нагрузка по процессам</div>
+    <div class="grid">
+      <div class="field">
+        <label for="apiTeamB">API</label>
+        <input type="text" id="apiTeamB" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="pspSecond">PSP</label>
+        <input type="text" id="pspSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="btMenaLeads1x">BT M</label>
+        <input type="text" id="btMenaLeads1x" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="smpSecond">SMP M</label>
+        <input type="text" id="smpSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field full">
+        <label for="l2l1MenaLeads1x">L2/L1 (депозиты)</label>
+        <input type="text" id="l2l1MenaLeads1x" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Fraud</div>
+    <div class="grid">
+      <div class="field full">
+        <label for="fraudMenaLeads1x">Нагрузка</label>
+        <input type="text" id="fraudMenaLeads1x" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">L1</div>
+    <div class="grid">
+      <div class="field full">
+        <label for="l1MenaLeads1x">Нагрузка</label>
+        <input type="text" id="l1MenaLeads1x" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Зависшие (24+)</div>
+    <div class="grid">
+      <div class="field">
+        <label for="zavApi">PSP/API</label>
+        <input type="text" id="zavApi" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="zavBtMenaLeads1x">BT M</label>
+        <input type="text" id="zavBtMenaLeads1x" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="zavSmpSecond">SMP M</label>
+        <input type="text" id="zavSmpSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="inProgressSmp">In Progress (BT/SMP)</label>
+        <input type="text" id="inProgressSmp" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">72h+</div>
+    <div class="grid">
+      <div class="field">
+        <label for="btSentSecond">BT Sent for processing</label>
+        <input type="text" id="btSentSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="btNewSecond">BT New request</label>
+        <input type="text" id="btNewSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="smpSentSecond">SMP Sent for processing</label>
+        <input type="text" id="smpSentSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+      <div class="field">
+        <label for="smpNewSecond">SMP New Request</label>
+        <input type="text" id="smpNewSecond" inputmode="numeric" placeholder="Вечерние данные">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="field">
+        <label for="chatLink">Чат 72</label>
+        <input type="text" id="chatLink" placeholder="Ссылка">
+      </div>
+      <div class="field">
+        <label for="waiting">Ожидают ответа: количество</label>
+        <input type="text" id="waiting" inputmode="numeric" placeholder="0">
+      </div>
+      <div class="field full">
+        <label for="waitingLinks">Ожидают ответа: ссылки</label>
+        <textarea id="waitingLinks" rows="2" placeholder="Каждая ссылка с новой строки"></textarea>
+      </div>
+      <div class="field">
+        <label for="approved">Массовый Approved</label>
+        <input type="text" id="approved" inputmode="numeric" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="errorStatus">Ошибка - Статус</label>
+        <input type="text" id="errorStatus" inputmode="numeric" placeholder="0">
+      </div>
+      <div class="field full">
+        <label for="problems">Проблемные области</label>
+        <textarea id="problems"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions main">
+    <button class="primary" type="button" onclick="generate()">Сформировать отчёт</button>
+    <span id="status"></span>
+  </div>
+
+  <div id="error"></div>
+
+  <div class="card">
+    <div class="section-title">Готовый текст</div>
+    <textarea id="result" placeholder="Нажмите «Сформировать отчёт»…"></textarea>
+    <div id="warnings"></div>
+
+    <div class="actions" style="margin-top: 10px;">
+      <button type="button" onclick="copyResult()">Скопировать</button>
+      <span id="copyStatus"></span>
+    </div>
+  </div>
 </div>
 
 <script>
-  // Ключи совпадают с MANUAL_SECOND_VALUE_KEYS в Code.gs.
-  var SECOND_VALUE_FIELDS = [
-    { key: 'apiTeamB', label: 'API (после /)' },
-    { key: 'pspSecond', label: 'PSP (после /)' },
-    { key: 'btMenaLeads1x', label: 'BT M — нагрузка (после /)' },
-    { key: 'smpSecond', label: 'SMP M — нагрузка (после /)' },
-    { key: 'l2l1MenaLeads1x', label: 'L2/L1 депозиты (после /)' },
-    { key: 'l1MenaLeads1x', label: 'L1 (после /)' },
-    { key: 'fraudMenaLeads1x', label: 'Fraud (после /)' },
-    { key: 'zavApi', label: 'Зависшие PSP/API (после /)' },
-    { key: 'zavBtMenaLeads1x', label: 'Зависшие BT M (после /)' },
-    { key: 'zavSmpSecond', label: 'Зависшие SMP M (после /)' },
-    { key: 'inProgressSmp', label: 'In Progress (BT/SMP) (после /)' },
-    { key: 'btSentSecond', label: 'BT Sent for processing 72h+ (после /)' },
-    { key: 'btNewSecond', label: 'BT New request 72h+ (после /)' },
-    { key: 'smpSentSecond', label: 'SMP Sent for processing 72h+ (после /)' },
-    { key: 'smpNewSecond', label: 'SMP New Request 72h+ (после /)' }
+  var EVENING_VALUE_KEYS = [
+    'apiTeamB',
+    'pspSecond',
+    'btMenaLeads1x',
+    'smpSecond',
+    'l2l1MenaLeads1x',
+    'l1MenaLeads1x',
+    'fraudMenaLeads1x',
+    'zavApi',
+    'zavBtMenaLeads1x',
+    'zavSmpSecond',
+    'inProgressSmp',
+    'btSentSecond',
+    'btNewSecond',
+    'smpSentSecond',
+    'smpNewSecond'
   ];
-
-  var grid = document.getElementById('secondValues');
-  SECOND_VALUE_FIELDS.forEach(function (f) {
-    var wrap = document.createElement('div');
-    var label = document.createElement('label');
-    label.textContent = f.label;
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.id = f.key;
-    input.placeholder = '0';
-    wrap.appendChild(label);
-    wrap.appendChild(input);
-    grid.appendChild(wrap);
-  });
 
   // Дату считаем в браузере, а не на сервере. Часовой пояс проекта
   // (Europe/Moscow) вечером уже на следующих сутках, и серверная дата
@@ -124,51 +413,80 @@
 
   document.getElementById('reportDate').value = localIsoDate();
 
+  function value_(id) {
+    return document.getElementById(id).value;
+  }
+
   function generate() {
-    document.getElementById('status').textContent = 'Считаю…';
-    document.getElementById('error').textContent = '';
-    document.getElementById('warnings').textContent = '';
+    var status = document.getElementById('status');
+    var error = document.getElementById('error');
+    var warnings = document.getElementById('warnings');
+    var button = document.querySelector('button.primary');
+
+    status.textContent = 'Считаю…';
+    error.textContent = '';
+    warnings.textContent = '';
+    button.disabled = true;
+
     var payload = {
-      date: document.getElementById('reportDate').value,
-      chatLink: document.getElementById('chatLink').value,
-      waiting: document.getElementById('waiting').value,
-      approved: document.getElementById('approved').value,
-      errorStatus: document.getElementById('errorStatus').value,
-      problems: document.getElementById('problems').value
+      date: value_('reportDate'),
+      vyvodyL1L2: value_('vyvodyL1L2'),
+      chatLink: value_('chatLink'),
+      waiting: value_('waiting'),
+      waitingLinks: value_('waitingLinks'),
+      approved: value_('approved'),
+      errorStatus: value_('errorStatus'),
+      problems: value_('problems')
     };
-    SECOND_VALUE_FIELDS.forEach(function (f) {
-      payload[f.key] = document.getElementById(f.key).value;
+
+    EVENING_VALUE_KEYS.forEach(function (key) {
+      payload[key] = value_(key);
     });
+
     google.script.run
       .withSuccessHandler(function (res) {
-        document.getElementById('result').value = res.text;
-        document.getElementById('status').textContent = 'Готово';
-        if (res.missing && res.missing.length) {
-          document.getElementById('warnings').textContent =
-            '⚠ Не найдено в таблице (оставлено пустым): ' + res.missing.join(', ');
+        document.getElementById('result').value = res.text || '';
+        status.textContent = 'Готово';
+        button.disabled = false;
+
+        if (res.warnings && res.warnings.length) {
+          warnings.textContent = '⚠ ' + res.warnings.join('\n⚠ ');
         }
       })
       .withFailureHandler(function (err) {
-        document.getElementById('status').textContent = '';
-        document.getElementById('error').textContent = 'Ошибка: ' + (err && err.message ? err.message : err);
+        status.textContent = '';
+        button.disabled = false;
+        showError_(err);
       })
       .generateReport(payload);
   }
 
+  function showError_(err) {
+    document.getElementById('error').textContent =
+      'Ошибка: ' + (err && err.message ? err.message : err);
+  }
+
   function copyResult() {
     var el = document.getElementById('result');
+    var copyStatus = document.getElementById('copyStatus');
+
     el.focus();
     el.select();
-    var copyStatus = document.getElementById('copyStatus');
-    var done = function () {
+
+    function done() {
       copyStatus.textContent = 'Скопировано!';
-      setTimeout(function () { copyStatus.textContent = ''; }, 1500);
-    };
+      setTimeout(function () {
+        copyStatus.textContent = '';
+      }, 1500);
+    }
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(el.value).then(done).catch(function () {
-        document.execCommand('copy');
-        done();
-      });
+      navigator.clipboard.writeText(el.value)
+        .then(done)
+        .catch(function () {
+          document.execCommand('copy');
+          done();
+        });
     } else {
       document.execCommand('copy');
       done();
